@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Home</h2>
+
+<section id="personalized" style="margin-bottom:20px;">
+  <h3>Your Feed</h3>
+  <div id="feed-area">
+    <p><em>Login to see personalized feed.</em></p>
+  </div>
+</section>
+
+<section>
+  <h3>All Questions</h3>
+  <ul id="questions-list">
+    {% for q in questions %}
+      <li><a href="/question/{{ q.id }}">{{ q.title }}</a> — <small>{{ q.tags }}</small></li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section style="margin-top:30px;">
+  <h3>Ask a question (login required)</h3>
+  <form id="ask-form">
+    <input id="ask-title" placeholder="Question title" required />
+    <textarea id="ask-content" placeholder="Explain the question"></textarea>
+    <input id="ask-tags" placeholder="tags (comma-separated)" />
+    <button type="submit">Post question</button>
+  </form>
+  <div id="ask-result"></div>
+</section>
+{% endblock %}

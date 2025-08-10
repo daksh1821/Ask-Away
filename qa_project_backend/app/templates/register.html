@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Register</h2>
+<form id="register-form">
+  <input id="reg-username" placeholder="username" required />
+  <input id="reg-email" placeholder="email" required />
+  <input id="reg-password" placeholder="password" type="password" required />
+  <input id="reg-interests" placeholder="interests (comma-separated)" />
+  <input id="reg-work" placeholder="work area" />
+  <button type="submit">Register</button>
+</form>
+<div id="reg-result"></div>
+{% endblock %}

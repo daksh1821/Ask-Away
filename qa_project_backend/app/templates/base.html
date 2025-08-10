@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Q&A Platform</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <nav class="nav">
+    <div class="logo"><a href="/">Q&A</a></div>
+    <div class="search">
+      <input id="search-input" placeholder="Search questions..." />
+      <button id="search-btn">Search</button>
+    </div>
+    <div class="auth">
+      <a id="link-register" href="/register">Register</a>
+      <a id="link-login" href="/login">Login</a>
+      <a id="link-logout" href="#" style="display:none;">Logout</a>
+    </div>
+  </nav>
+  <div class="container">
+    {% block content %}{% endblock %}
+  </div>
+  <script src="/static/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 id="q-title">{{ question.title }}</h2>
+<p id="q-content">{{ question.content }}</p>
+<p><strong>Tags:</strong> {{ question.tags }}</p>
+<hr/>
+<h3>Answers</h3>
+<ul id="answers-list">
+  {% for a in question.answers %}
+    <li>{{ a.content }} — <small>by user {{ a.user_id }}</small></li>
+  {% endfor %}
+</ul>
+
+<section>
+  <h4>Post an answer (login required)</h4>
+  <form id="answer-form">
+    <textarea id="answer-content" placeholder="Your answer"></textarea>
+    <button type="submit">Submit</button>
+  </form>
+  <div id="answer-result"></div>
+</section>
+{% endblock %}

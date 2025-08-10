@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Login</h2>
+<form id="login-form">
+  <input id="login-username" placeholder="username" required />
+  <input id="login-password" placeholder="password" type="password" required />
+  <button type="submit">Login</button>
+</form>
+<div id="login-result"></div>
+{% endblock %}

@@ -1,0 +1,9 @@
+qa.db
+
+# Environment variables
+.env
+
+# Logs
+*.log
+
+myenv
