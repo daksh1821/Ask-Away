@@ -8,7 +8,9 @@ router = APIRouter(prefix="/questions", tags=["questions"])
 
 @router.post("", response_model=schemas.QuestionOut)
 def create_question(q: schemas.QuestionCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.get_current_user)):
+    crud.increment_questions_count(db, current_user.id)
     return crud.create_question(db, current_user.id, q)
+
 
 @router.get("", response_model=List[schemas.QuestionOut])
 def list_questions(skip: int = 0, limit: int = 100, db: Session = Depends(database.get_db)):

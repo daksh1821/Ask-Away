@@ -6,7 +6,10 @@ from sqlalchemy import or_
 
 pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Users
+# =====================
+# User CRUD
+# =====================
+
 def get_user_by_username(db: Session, username: str):
     return db.query(models.User).filter(models.User.username == username).first()
 
@@ -17,10 +20,14 @@ def create_user(db: Session, user: schemas.UserCreate):
     hashed = pwd.hash(user.password)
     db_user = models.User(
         username=user.username,
+        first_name=user.first_name,
+        last_name=user.last_name or "",
         email=user.email,
         password_hash=hashed,
         interests=user.interests or "",
-        work_area=user.work_area or ""
+        work_area=user.work_area or "",
+        questions_count=0,
+        answers_count=0
     )
     db.add(db_user)
     db.commit()
@@ -30,9 +37,18 @@ def create_user(db: Session, user: schemas.UserCreate):
 def verify_password(plain, hashed):
     return pwd.verify(plain, hashed)
 
-# Questions & Answers
+
+# =====================
+# Question CRUD
+# =====================
+
 def create_question(db: Session, user_id: int, q: schemas.QuestionCreate):
-    dbq = models.Question(title=q.title, content=q.content, tags=q.tags or "", user_id=user_id)
+    dbq = models.Question(
+        title=q.title,
+        content=q.content,
+        tags=q.tags or "",
+        user_id=user_id
+    )
     db.add(dbq)
     db.commit()
     db.refresh(dbq)
@@ -47,11 +63,24 @@ def list_questions(db: Session, skip=0, limit=100):
 def search_questions(db: Session, q: str, limit=50):
     like = f"%{q}%"
     return db.query(models.Question).filter(
-        or_(models.Question.title.ilike(like), models.Question.content.ilike(like), models.Question.tags.ilike(like))
+        or_(
+            models.Question.title.ilike(like),
+            models.Question.content.ilike(like),
+            models.Question.tags.ilike(like)
+        )
     ).order_by(models.Question.created_at.desc()).limit(limit).all()
 
+
+# =====================
+# Answer CRUD
+# =====================
+
 def create_answer(db: Session, user_id: int, question_id: int, ans: schemas.AnswerCreate):
-    dbans = models.Answer(content=ans.content, user_id=user_id, question_id=question_id)
+    dbans = models.Answer(
+        content=ans.content,
+        user_id=user_id,
+        question_id=question_id
+    )
     db.add(dbans)
     db.commit()
     db.refresh(dbans)
@@ -59,6 +88,11 @@ def create_answer(db: Session, user_id: int, question_id: int, ans: schemas.Answ
 
 def get_answers_for_question(db: Session, question_id: int):
     return db.query(models.Answer).filter(models.Answer.question_id == question_id).order_by(models.Answer.created_at.asc()).all()
+
+
+# =====================
+# Personalized Feed
+# =====================
 
 def personalized_feed(db: Session, interests: str, limit=50):
     if not interests:
@@ -73,3 +107,20 @@ def personalized_feed(db: Session, interests: str, limit=50):
         clauses.append(models.Question.content.ilike(like))
         clauses.append(models.Question.tags.ilike(like))
     return db.query(models.Question).filter(or_(*clauses)).order_by(models.Question.created_at.desc()).limit(limit).all()
+
+
+# =====================
+# Count Increment Functions
+# =====================
+
+def increment_questions_count(db: Session, user_id: int):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if user:
+        user.questions_count += 1
+        db.commit()
+
+def increment_answers_count(db: Session, user_id: int):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if user:
+        user.answers_count += 1
+        db.commit()

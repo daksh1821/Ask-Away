@@ -6,6 +6,8 @@ from pydantic import ConfigDict
 
 class UserCreate(BaseModel):
     username: str
+    first_name: str
+    last_name: Optional[str] = ""
     email: EmailStr
     password: str
     interests: Optional[str] = ""
@@ -13,6 +15,10 @@ class UserCreate(BaseModel):
 
 class UserOut(BaseModel):
     id: int
+    first_name: str
+    last_name: Optional[str]
+    questions_count: int
+    answers_count: int
     username: str
     email: EmailStr
     interests: Optional[str]

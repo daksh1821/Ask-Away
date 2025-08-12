@@ -6,11 +6,15 @@ from .database import Base
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
+    first_name = Column(String(80))
+    last_name = Column(String(80), default="")
     username = Column(String(80), unique=True, nullable=False, index=True)
     email = Column(String(200), unique=True, nullable=False, index=True)
     password_hash = Column(String(200), nullable=False)
     interests = Column(String(500), default="")
     work_area = Column(String(200), default="")
+    questions_count = Column(Integer, default=0)
+    answers_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     questions = relationship("Question", back_populates="author")

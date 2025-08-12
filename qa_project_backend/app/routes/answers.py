@@ -9,6 +9,7 @@ router = APIRouter(prefix="/answers", tags=["answers"])
 def create_answer(ans: schemas.AnswerCreate, question_id: int, db: Session = Depends(database.get_db), current_user: schemas.UserOut = Depends(auth.get_current_user)):
     if not crud.get_question(db, question_id):
         raise HTTPException(status_code=404, detail="Question not found")
+    crud.increment_answers_count(db, current_user.id)
     return crud.create_answer(db, current_user.id, question_id, ans)
 
 @router.get("/{question_id}", response_model=List[schemas.AnswerOut])
