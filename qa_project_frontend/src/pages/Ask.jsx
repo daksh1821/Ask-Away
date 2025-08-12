@@ -12,13 +12,20 @@ const Ask = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const response = await api.post('/questions', formData);
-      navigate(`/question/${response.data.id}`);
-    } catch (err) {
-      setError('Failed to post question');
-    }
+  e.preventDefault();
+
+  // DEBUG: print localStorage token and axios defaults
+  console.log('localStorage qa_token:', localStorage.getItem('qa_token'));
+  console.log('axios headers before post:', api.defaults.headers?.common);
+
+  try {
+    // note trailing slash to avoid server redirect
+    const response = await api.post('/questions/', formData);
+    navigate(`/question/${response.data.id}`);
+  } catch (err) {
+    console.error('POST /questions error:', err.response || err);
+    setError('Failed to post question');
+  }
   };
 
   return (

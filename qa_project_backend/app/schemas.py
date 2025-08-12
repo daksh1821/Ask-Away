@@ -1,3 +1,4 @@
+# app/schemas.py
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from datetime import datetime
@@ -22,6 +23,11 @@ class UserOut(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+# login request (JSON)
+class LoginRequest(BaseModel):
+    username: str
+    password: str
 
 class QuestionCreate(BaseModel):
     title: str

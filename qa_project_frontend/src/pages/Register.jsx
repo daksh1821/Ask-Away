@@ -1,3 +1,4 @@
+// src/pages/Register.jsx
 import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
@@ -18,7 +19,8 @@ const Register = () => {
       await register(formData);
       navigate('/login');
     } catch (err) {
-      setError('Registration failed');
+      console.error(err);
+      setError('Registration failed: ' + (err.response?.data?.detail || err.message));
     }
   };
 
@@ -27,6 +29,7 @@ const Register = () => {
       <h2 className="text-2xl font-bold mb-6 text-center">Register</h2>
       {error && <p className="text-red-500 mb-4">{error}</p>}
       <form onSubmit={handleSubmit}>
+        {/* username, email, password, interests, work_area inputs */}
         <div className="mb-4">
           <label className="block text-sm font-medium mb-1">Username</label>
           <input name="username" value={formData.username} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" required />

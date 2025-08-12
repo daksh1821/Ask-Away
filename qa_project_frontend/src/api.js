@@ -1,9 +1,11 @@
+// src/api.js
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api', // Uses proxy to avoid CORS
+  baseURL: '/api', // proxy will forward to backend
 });
 
+// Set or remove token in axios + localStorage
 export const setAuthToken = (token) => {
   if (token) {
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
@@ -13,5 +15,11 @@ export const setAuthToken = (token) => {
     localStorage.removeItem('qa_token');
   }
 };
+
+// Load token on app start
+const savedToken = localStorage.getItem('qa_token');
+if (savedToken) {
+  setAuthToken(savedToken);
+}
 
 export default api;
