@@ -1,54 +1,123 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
+import logging
+import uvicorn
+
 from .config import settings
 from .database import engine, Base
 from .routes import auth as auth_router, questions as q_router, answers as answers_router
 
-# create tables at start (safe)
-Base.metadata.create_all(bind=engine)
+# Configure logging
+logging.basicConfig(
+    level=getattr(logging, settings.LOG_LEVEL.upper()),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Q&A Platform")# app/main.py
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from .config import settings
-from .database import engine, Base
-from .routes import auth as auth_router, questions as q_router, answers as answers_router
+# Create tables at startup (safe with SQLAlchemy)
+try:
+    Base.metadata.create_all(bind=engine)
+    logger.info("Database tables created successfully")
+except Exception as e:
+    logger.error(f"Error creating database tables: {e}")
+    raise
 
-# create tables at start (safe)
-Base.metadata.create_all(bind=engine)
-
-app = FastAPI(title="Q&A Platform")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.BACKEND_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+# Initialize FastAPI app
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+    description="A comprehensive Q&A platform API built with FastAPI",
+    docs_url=settings.DOCS_URL,
+    redoc_url=settings.REDOC_URL,
+    debug=settings.DEBUG
 )
 
-@app.get("/")
-def read_root():
-    return {"message": "Welcome to the Q&A Platform API!"}
-
-# Mount routers under /api so frontend baseURL '/api' matches
-app.include_router(auth_router.router, prefix="/api")
-app.include_router(q_router.router, prefix="/api")
-app.include_router(answers_router.router, prefix="/api")
-
-
+# Add security middleware
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.BACKEND_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    TrustedHostMiddleware,
+    allowed_hosts=["*"]  # Configure this properly in production
 )
 
-@app.get("/")
-def read_root():
-    return {"message": "Welcome to the Q&A Platform API!"}
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["*"]
+)
 
-app.include_router(auth_router.router)
-app.include_router(q_router.router)
-app.include_router(answers_router.router)
+# Global exception handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    logger.error(f"Global exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"}
+    )
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "app_name": settings.APP_NAME,
+        "version": settings.APP_VERSION
+    }
+
+# Root endpoint
+@app.get("/")
+async def read_root():
+    """Welcome message"""
+    return {
+        "message": f"Welcome to {settings.APP_NAME}!",
+        "version": settings.APP_VERSION,
+        "docs_url": settings.DOCS_URL,
+        "redoc_url": settings.REDOC_URL
+    }
+
+# Include routers with API prefix
+app.include_router(
+    auth_router.router, 
+    prefix=settings.API_PREFIX,
+    tags=["authentication"]
+)
+app.include_router(
+    q_router.router, 
+    prefix=settings.API_PREFIX,
+    tags=["questions"]
+)
+app.include_router(
+    answers_router.router, 
+    prefix=settings.API_PREFIX,
+    tags=["answers"]
+)
+
+# Startup event
+@app.on_event("startup")
+async def startup_event():
+    """Application startup event"""
+    logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    logger.info(f"Debug mode: {settings.DEBUG}")
+    logger.info(f"Database: {settings.DATABASE_URL}")
+    logger.info(f"CORS origins: {settings.CORS_ORIGINS}")
+
+# Shutdown event
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Application shutdown event"""
+    logger.info(f"Shutting down {settings.APP_NAME}")
+
+# Run the application
+if __name__ == "__main__":
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=settings.DEBUG,
+        log_level=settings.LOG_LEVEL.lower()
+    )
