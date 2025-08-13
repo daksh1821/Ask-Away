@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api', // proxy will forward to backend
+  baseURL: 'http://localhost:8000/api', // Direct backend URL for testing
   timeout: 10000, // 10 second timeout
 });
 
@@ -75,10 +75,11 @@ if (savedToken) {
 // Helper functions for common API calls
 export const apiHelpers = {
   auth: {
-    login: (credentials) => api.post('/auth/login', credentials),
+    // Use the JSON login endpoint that matches your backend
+    login: (credentials) => api.post('/auth/login-json', credentials),
     register: (userData) => api.post('/auth/register', userData),
     getProfile: () => api.get('/auth/me'),
-    updateProfile: (data) => api.put('/users/me', data),
+    updateProfile: (data) => api.put('/auth/me', data),
     deleteAccount: () => api.delete('/auth/me'),
   },
 
@@ -94,9 +95,10 @@ export const apiHelpers = {
   },
 
   answers: {
-    getForQuestion: (questionId, params = {}) => api.get(`/answers/${questionId}`, { params }),
+    getForQuestion: (questionId, params = {}) => api.get(`/answers/question/${questionId}`, { params }),
     create: (questionId, answerData) => api.post(`/answers/${questionId}`, answerData),
-    star: (questionId, answerId) => api.post(`/answers/star`, null, { params: { question_id: questionId, answer_id: answerId } }),
+    star: (answerId) => api.post(`/answers/${answerId}/star`),
+    unstar: (answerId) => api.delete(`/answers/${answerId}/star`),
   },
 };
 

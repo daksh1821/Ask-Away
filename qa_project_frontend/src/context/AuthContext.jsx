@@ -37,8 +37,8 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (username, password) => {
-    // Send JSON, not form-data
-    const response = await api.post('/auth/login', {
+    // Use the JSON endpoint instead of the form-data endpoint
+    const response = await api.post('/auth/login-json', {
       username,
       password
     }, {
