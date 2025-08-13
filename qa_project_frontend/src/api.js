@@ -81,24 +81,52 @@ export const apiHelpers = {
     getProfile: () => api.get('/auth/me'),
     updateProfile: (data) => api.put('/auth/me', data),
     deleteAccount: () => api.delete('/auth/me'),
+    getUserStats: () => api.get('/auth/me/stats'),
   },
 
   questions: {
     list: (params = {}) => api.get('/questions', { params }),
     search: (query, params = {}) => api.get('/questions/search', { params: { q: query, ...params } }),
     feed: (params = {}) => api.get('/questions/feed', { params }),
+    trending: (params = {}) => api.get('/questions/trending', { params }),
     getById: (id, includeAnswers = true) => api.get(`/questions/${id}`, { params: { include_answers: includeAnswers } }),
     create: (questionData) => api.post('/questions', questionData),
     update: (id, updateData) => api.put(`/questions/${id}`, updateData),
     delete: (id) => api.delete(`/questions/${id}`),
     getUserQuestions: (userId, params = {}) => api.get(`/questions`, { params: { user_id: userId, ...params } }),
+    getMyQuestions: (params = {}) => api.get('/questions/my', { params }),
+    // Add view tracking
+    incrementView: (id) => api.post(`/questions/${id}/view`),
   },
 
   answers: {
     getForQuestion: (questionId, params = {}) => api.get(`/answers/question/${questionId}`, { params }),
     create: (questionId, answerData) => api.post(`/answers/${questionId}`, answerData),
+    update: (answerId, updateData) => api.put(`/answers/${answerId}`, updateData),
+    delete: (answerId) => api.delete(`/answers/${answerId}`),
     star: (answerId) => api.post(`/answers/${answerId}/star`),
     unstar: (answerId) => api.delete(`/answers/${answerId}/star`),
+    getStarredAnswers: () => api.get('/answers/starred'),
+    getMyAnswers: (params = {}) => api.get('/answers/my', { params }),
+  },
+
+  // Add platform stats
+  stats: {
+    getPlatformStats: () => api.get('/stats/platform'),
+    getUserStats: (userId) => api.get(`/stats/user/${userId}`),
+  },
+
+  // Add file upload support (for future profile pictures)
+  upload: {
+    profilePicture: (file) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      return api.post('/upload/profile-picture', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+    },
   },
 };
 

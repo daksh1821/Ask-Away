@@ -49,6 +49,7 @@ class Question(Base):
     content = Column(Text, nullable=False)
     tags = Column(String(300), default="")
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    views_count = Column(Integer, default=0, nullable=False)  # NEW: Track total views
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -58,12 +59,14 @@ class Question(Base):
     user = relationship("User", back_populates="questions")
     answers = relationship("Answer", back_populates="question", cascade="all, delete-orphan", lazy="dynamic")
     stars = relationship("Star", back_populates="question", cascade="all, delete-orphan", lazy="dynamic")
+    views = relationship("QuestionView", back_populates="question", cascade="all, delete-orphan", lazy="dynamic")  # NEW
     
     # Indexes for performance
     __table_args__ = (
         Index('idx_question_user_created', 'user_id', 'created_at'),
         Index('idx_question_tags', 'tags'),
         Index('idx_question_title_content', 'title', 'content'),  # For full-text search
+        Index('idx_question_views_count', 'views_count'),  # NEW: For sorting by popularity
     )
 
 class Answer(Base):
@@ -110,4 +113,29 @@ class Star(Base):
         UniqueConstraint("user_id", "question_id", name="unique_star_per_question"),
         Index('idx_star_user_question', 'user_id', 'question_id'),
         Index('idx_star_answer', 'answer_id'),
+    )
+
+# NEW MODEL: Track unique question views
+class QuestionView(Base):
+    __tablename__ = "question_views"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    question_id = Column(Integer, ForeignKey("questions.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)  # Null for anonymous users
+    ip_address = Column(String(45), nullable=True)  # For anonymous tracking (IPv4/IPv6)
+    user_agent = Column(String(500), nullable=True)  # For analytics
+    
+    # Timestamp
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
+    # Relationships
+    question = relationship("Question", back_populates="views")
+    user = relationship("User")  # No back_populates since User doesn't need to track all views
+    
+    # Constraints and indexes
+    __table_args__ = (
+        # Prevent duplicate views from same user/IP combination
+        Index('idx_question_views_tracking', 'question_id', 'user_id', 'ip_address'),
+        Index('idx_question_views_created', 'created_at'),
+        Index('idx_question_views_question', 'question_id'),
     )

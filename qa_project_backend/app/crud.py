@@ -3,8 +3,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from . import models, schemas
 from passlib.context import CryptContext
 from typing import List, Optional
-from sqlalchemy import or_, func, desc, asc
+from sqlalchemy import or_, func, desc, asc, and_
+from datetime import datetime, timedelta
+import logging
 
+logger = logging.getLogger(__name__)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
@@ -86,7 +89,8 @@ def create_question(db: Session, user_id: int, question: schemas.QuestionCreate)
             title=question.title,
             content=question.content,
             tags=question.tags or "",
-            user_id=user_id
+            user_id=user_id,
+            views_count=0  # Initialize views count
         )
         db.add(db_question)
         
@@ -115,8 +119,37 @@ def get_question_with_answers(db: Session, question_id: int) -> Optional[models.
         joinedload(models.Question.answers).joinedload(models.Answer.user)
     ).filter(models.Question.id == question_id).first()
 
+def get_question_with_answers_and_stars(db: Session, question_id: int, current_user_id: int = None) -> Optional[models.Question]:
+    """Get question with all its answers and star information"""
+    question = db.query(models.Question).options(
+        joinedload(models.Question.user),
+        joinedload(models.Question.answers).joinedload(models.Answer.user)
+    ).filter(models.Question.id == question_id).first()
+    
+    if not question:
+        return None
+    
+    # Add star information to each answer
+    for answer in question.answers:
+        # Count total stars for this answer
+        answer.stars_count = db.query(models.Star).filter(
+            models.Star.answer_id == answer.id
+        ).count()
+        
+        # Check if current user has starred this answer
+        if current_user_id:
+            user_star = db.query(models.Star).filter(
+                models.Star.answer_id == answer.id,
+                models.Star.user_id == current_user_id
+            ).first()
+            answer.is_starred = bool(user_star)
+        else:
+            answer.is_starred = False
+    
+    return question
+
 def list_questions(db: Session, skip: int = 0, limit: int = 100) -> List[models.Question]:
-    """Get paginated list of questions with user info"""
+    """Get paginated list of questions with user info, ordered by recent activity"""
     return db.query(models.Question).options(
         joinedload(models.Question.user)
     ).order_by(desc(models.Question.created_at)).offset(skip).limit(limit).all()
@@ -137,6 +170,40 @@ def search_questions(db: Session, query: str, limit: int = 50) -> List[models.Qu
         )
     ).order_by(desc(models.Question.created_at)).limit(limit).all()
 
+def search_questions_enhanced(db: Session, query: str, limit: int = 50, current_user_interests: str = None) -> List[models.Question]:
+    """Enhanced search with relevance ranking"""
+    if not query.strip():
+        return list_questions(db, limit=limit)
+    
+    search_term = f"%{query.strip()}%"
+    
+    # Build base query
+    base_query = db.query(models.Question).options(
+        joinedload(models.Question.user)
+    )
+    
+    # Search in title, content, and tags
+    search_filter = or_(
+        models.Question.title.ilike(search_term),
+        models.Question.content.ilike(search_term),
+        models.Question.tags.ilike(search_term)
+    )
+    
+    # Apply search filter
+    questions = base_query.filter(search_filter)
+    
+    # Order by relevance (title matches first, then recent, then popular)
+    questions = questions.order_by(
+        # Title matches first
+        models.Question.title.ilike(search_term).desc(),
+        # Then by views and popularity
+        models.Question.views_count.desc(),
+        # Finally by recency
+        models.Question.created_at.desc()
+    ).limit(limit).all()
+    
+    return questions
+
 def get_user_questions(db: Session, user_id: int, skip: int = 0, limit: int = 50) -> List[models.Question]:
     """Get all questions by a specific user"""
     return db.query(models.Question).options(
@@ -144,6 +211,78 @@ def get_user_questions(db: Session, user_id: int, skip: int = 0, limit: int = 50
     ).filter(models.Question.user_id == user_id).order_by(
         desc(models.Question.created_at)
     ).offset(skip).limit(limit).all()
+
+
+# =====================
+# View Tracking System
+# =====================
+
+def track_question_view(db: Session, question_id: int, user_id: int = None, ip_address: str = None, user_agent: str = None) -> bool:
+    """Track a question view with duplicate prevention"""
+    try:
+        # Check if this is a duplicate view (within last hour)
+        cutoff_time = datetime.utcnow() - timedelta(hours=1)
+        
+        existing_view = None
+        if user_id:
+            # For logged-in users, check by user_id
+            existing_view = db.query(models.QuestionView).filter(
+                models.QuestionView.question_id == question_id,
+                models.QuestionView.user_id == user_id,
+                models.QuestionView.created_at > cutoff_time
+            ).first()
+        elif ip_address:
+            # For anonymous users, check by IP
+            existing_view = db.query(models.QuestionView).filter(
+                models.QuestionView.question_id == question_id,
+                models.QuestionView.ip_address == ip_address,
+                models.QuestionView.created_at > cutoff_time
+            ).first()
+        
+        if existing_view:
+            return False  # Don't count duplicate views
+        
+        # Create new view record
+        new_view = models.QuestionView(
+            question_id=question_id,
+            user_id=user_id,
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+        db.add(new_view)
+        
+        # Increment question views count atomically
+        db.query(models.Question).filter(models.Question.id == question_id).update({
+            models.Question.views_count: models.Question.views_count + 1
+        })
+        
+        db.commit()
+        return True
+        
+    except SQLAlchemyError as e:
+        db.rollback()
+        logger.error(f"Failed to track view: {str(e)}")
+        return False
+
+def get_question_views_count(db: Session, question_id: int) -> int:
+    """Get total view count for a question"""
+    question = db.query(models.Question).filter(models.Question.id == question_id).first()
+    return question.views_count if question else 0
+
+def get_most_viewed_questions(db: Session, limit: int = 20, days: int = None) -> List[models.Question]:
+    """Get most viewed questions, optionally within a time period"""
+    query = db.query(models.Question).options(
+        joinedload(models.Question.user)
+    )
+    
+    if days:
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        query = query.filter(models.Question.created_at >= cutoff_date)
+    
+    return query.order_by(
+        desc(models.Question.views_count),
+        desc(models.Question.created_at)
+    ).limit(limit).all()
 
 
 # =====================
@@ -191,7 +330,7 @@ def get_user_answers(db: Session, user_id: int, skip: int = 0, limit: int = 50) 
 
 
 # =====================
-# Star/Vote System
+# Enhanced Star/Vote System
 # =====================
 
 def star_answer(db: Session, user_id: int, question_id: int, answer_id: int) -> models.Star:
@@ -214,6 +353,10 @@ def star_answer(db: Session, user_id: int, question_id: int, answer_id: int) -> 
         
         if not answer:
             raise Exception("Answer not found for this question")
+        
+        # Don't allow users to star their own answers
+        if answer.user_id == user_id:
+            raise Exception("You cannot star your own answer")
         
         # Create the star
         new_star = models.Star(
@@ -267,11 +410,24 @@ def get_user_starred_answers(db: Session, user_id: int) -> List[models.Star]:
     return db.query(models.Star).options(
         joinedload(models.Star.answer).joinedload(models.Answer.question),
         joinedload(models.Star.answer).joinedload(models.Answer.user)
-    ).filter(models.Star.user_id == user_id).all()
+    ).filter(models.Star.user_id == user_id).order_by(
+        desc(models.Star.created_at)
+    ).all()
+
+def get_answer_stars_count(db: Session, answer_id: int) -> int:
+    """Get total stars count for an answer"""
+    return db.query(models.Star).filter(models.Star.answer_id == answer_id).count()
+
+def check_user_starred_answer(db: Session, user_id: int, question_id: int) -> Optional[models.Star]:
+    """Check if user has starred an answer for this question"""
+    return db.query(models.Star).filter(
+        models.Star.user_id == user_id,
+        models.Star.question_id == question_id
+    ).first()
 
 
 # =====================
-# Personalized Feed & Recommendations
+# Enhanced Feed & Recommendations
 # =====================
 
 def personalized_feed(db: Session, interests: str, limit: int = 50) -> List[models.Question]:
@@ -297,13 +453,12 @@ def personalized_feed(db: Session, interests: str, limit: int = 50) -> List[mode
     return db.query(models.Question).options(
         joinedload(models.Question.user)
     ).filter(or_(*search_clauses)).order_by(
+        desc(models.Question.views_count),  # Popular first
         desc(models.Question.created_at)
     ).limit(limit).all()
 
 def get_trending_questions(db: Session, days: int = 7, limit: int = 20) -> List[models.Question]:
     """Get trending questions based on recent activity"""
-    from datetime import datetime, timedelta
-    
     cutoff_date = datetime.utcnow() - timedelta(days=days)
     
     # Questions with most answers in the given time period
@@ -313,12 +468,36 @@ def get_trending_questions(db: Session, days: int = 7, limit: int = 20) -> List[
         models.Answer.created_at >= cutoff_date
     ).group_by(models.Question.id).order_by(
         desc(func.count(models.Answer.id)),
+        desc(models.Question.views_count),
         desc(models.Question.created_at)
     ).limit(limit).all()
 
+def get_trending_questions_enhanced(db: Session, days: int = 7, limit: int = 20) -> List[models.Question]:
+    """Get trending questions with better scoring algorithm"""
+    cutoff_date = datetime.utcnow() - timedelta(days=days)
+    
+    # Complex trending algorithm considering views, answers, stars, and recency
+    questions = db.query(models.Question).options(
+        joinedload(models.Question.user)
+    ).filter(
+        models.Question.created_at >= cutoff_date
+    ).outerjoin(models.Answer).outerjoin(models.Star).group_by(
+        models.Question.id
+    ).order_by(
+        # Trending score: views + (answers * 2) + (total_stars * 3)
+        (
+            models.Question.views_count + 
+            (func.count(models.Answer.id.distinct()) * 2) + 
+            (func.count(models.Star.id.distinct()) * 3)
+        ).desc(),
+        models.Question.created_at.desc()
+    ).limit(limit).all()
+    
+    return questions
+
 
 # =====================
-# Statistics & Analytics
+# Enhanced Statistics & Analytics
 # =====================
 
 def get_user_stats(db: Session, user_id: int) -> dict:
@@ -337,13 +516,54 @@ def get_user_stats(db: Session, user_id: int) -> dict:
         ).count()
     }
 
+def get_user_stats_enhanced(db: Session, user_id: int) -> dict:
+    """Get comprehensive user statistics with additional metrics"""
+    user = get_user_by_id(db, user_id)
+    if not user:
+        return {}
+    
+    # Calculate additional stats
+    total_views = db.query(func.sum(models.Question.views_count)).filter(
+        models.Question.user_id == user_id
+    ).scalar() or 0
+    
+    stars_received = db.query(func.count(models.Star.id)).join(
+        models.Answer, models.Star.answer_id == models.Answer.id
+    ).filter(models.Answer.user_id == user_id).scalar() or 0
+    
+    stars_given = db.query(func.count(models.Star.id)).filter(
+        models.Star.user_id == user_id
+    ).scalar() or 0
+    
+    # Best answer (most starred)
+    best_answer = db.query(models.Answer).outerjoin(models.Star).filter(
+        models.Answer.user_id == user_id
+    ).group_by(models.Answer.id).order_by(
+        func.count(models.Star.id).desc()
+    ).first()
+    
+    return {
+        "questions_count": user.questions_count,
+        "answers_count": user.answers_count,
+        "reputation": user.reputation,
+        "total_views": total_views,
+        "stars_given": stars_given,
+        "stars_received": stars_received,
+        "best_answer_stars": db.query(func.count(models.Star.id)).filter(
+            models.Star.answer_id == best_answer.id
+        ).scalar() if best_answer else 0,
+        "join_date": user.created_at,
+        "avg_views_per_question": round(total_views / max(user.questions_count, 1), 2)
+    }
+
 def get_platform_stats(db: Session) -> dict:
     """Get overall platform statistics"""
     return {
         "total_users": db.query(models.User).count(),
         "total_questions": db.query(models.Question).count(),
         "total_answers": db.query(models.Answer).count(),
-        "total_stars": db.query(models.Star).count()
+        "total_stars": db.query(models.Star).count(),
+        "total_views": db.query(func.sum(models.Question.views_count)).scalar() or 0
     }
 
 
