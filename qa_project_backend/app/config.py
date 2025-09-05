@@ -29,6 +29,34 @@ class Settings(BaseSettings):
     # For backward compatibility with BACKEND_ORIGINS
     BACKEND_ORIGINS: Optional[List[str]] = Field(default=None, env="BACKEND_ORIGINS")
     
+    # Google OAuth
+    GOOGLE_CLIENT_ID: str = Field(default="", env="GOOGLE_CLIENT_ID")
+    GOOGLE_CLIENT_SECRET: str = Field(default="", env="GOOGLE_CLIENT_SECRET")
+    GOOGLE_REDIRECT_URI: str = Field(default="http://localhost:8000/api/auth/google/callback", env="GOOGLE_REDIRECT_URI")
+    
+    # Slack Integration
+    SLACK_BOT_TOKEN: str = Field(default="", env="SLACK_BOT_TOKEN")
+    SLACK_SIGNING_SECRET: str = Field(default="", env="SLACK_SIGNING_SECRET")
+    SLACK_WEBHOOK_URL: str = Field(default="", env="SLACK_WEBHOOK_URL")
+    
+    # OpenAI for AI Summarization
+    OPENAI_API_KEY: str = Field(default="", env="OPENAI_API_KEY")
+    
+    # AWS Configuration
+    AWS_ACCESS_KEY_ID: str = Field(default="", env="AWS_ACCESS_KEY_ID")
+    AWS_SECRET_ACCESS_KEY: str = Field(default="", env="AWS_SECRET_ACCESS_KEY")
+    AWS_REGION: str = Field(default="us-east-1", env="AWS_REGION")
+    AWS_S3_BUCKET: str = Field(default="", env="AWS_S3_BUCKET")
+    
+    # Redis for caching
+    REDIS_URL: str = Field(default="redis://localhost:6379", env="REDIS_URL")
+    
+    # Email Configuration
+    SMTP_HOST: str = Field(default="smtp.gmail.com", env="SMTP_HOST")
+    SMTP_PORT: int = Field(default=587, env="SMTP_PORT")
+    SMTP_USER: str = Field(default="", env="SMTP_USER")
+    SMTP_PASSWORD: str = Field(default="", env="SMTP_PASSWORD")
+    
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = Field(default=100, env="RATE_LIMIT_REQUESTS")
     RATE_LIMIT_WINDOW: int = Field(default=3600, env="RATE_LIMIT_WINDOW")

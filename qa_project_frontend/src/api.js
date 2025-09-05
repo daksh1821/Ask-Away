@@ -128,6 +128,28 @@ export const apiHelpers = {
       });
     },
   },
+
+  // AI Services
+  ai: {
+    generateSummary: (questionId) => api.post(`/ai/summarize/${questionId}`),
+    suggestTags: (title, content) => api.post('/ai/suggest-tags', null, { params: { title, content } }),
+    getQualityScore: (answerId) => api.get(`/ai/quality-score/${answerId}`),
+    getAnalytics: () => api.get('/ai/analytics/platform'),
+  },
+
+  // Integrations
+  integrations: {
+    getStatus: () => api.get('/integrations/status'),
+    sendSlackNotification: (channel, message) => api.post('/integrations/slack/notify', { channel, message }),
+    sendDailySummary: () => api.post('/integrations/slack/daily-summary'),
+    backupData: () => api.post('/integrations/aws/backup'),
+    sendMetrics: () => api.post('/integrations/aws/metrics'),
+  },
+
+  // OAuth
+  oauth: {
+    googleLogin: () => window.location.href = `${api.defaults.baseURL}/auth/google/login`,
+  },
 };
 
 export default api;

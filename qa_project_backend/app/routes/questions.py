@@ -2,6 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from .. import schemas, database, crud, auth, models
+from ..services.ai_service import ai_service
+from ..services.slack_service import slack_service
+from ..services.aws_service import aws_service
 import logging
 
 logger = logging.getLogger(__name__)
@@ -13,14 +16,45 @@ router = APIRouter(prefix="/questions", tags=["questions"])
 # =====================
 
 @router.post("", response_model=schemas.QuestionOut, status_code=status.HTTP_201_CREATED)
-def create_question(
+async def create_question(
     question: schemas.QuestionCreate,
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
     """Create a new question"""
     try:
-        return crud.create_question(db, current_user.id, question)
+        # Create the question
+        new_question = crud.create_question(db, current_user.id, question)
+        
+        # AI Enhancement: Generate suggested tags if not provided
+        if not question.tags and ai_service:
+            suggested_tags = await ai_service.suggest_tags(question.title, question.content)
+            if suggested_tags:
+                new_question.suggested_tags = ','.join(suggested_tags)
+                db.commit()
+        
+        # Send Slack notification
+        if slack_service:
+            await slack_service.notify_new_question(
+                {
+                    'id': new_question.id,
+                    'title': new_question.title,
+                    'content': new_question.content
+                },
+                {
+                    'first_name': current_user.first_name,
+                    'last_name': current_user.last_name,
+                    'username': current_user.username
+                }
+            )
+            new_question.slack_notified = 1
+            db.commit()
+        
+        # Send metrics to CloudWatch
+        if aws_service:
+            await aws_service.send_metric_to_cloudwatch('QuestionsCreated', 1)
+        
+        return new_question
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -56,9 +90,10 @@ def list_questions(
         )
 
 @router.get("/{question_id}", response_model=schemas.QuestionDetail)
-def get_question(
+async def get_question(
     question_id: int,
     include_answers: bool = Query(True, description="Include answers in response"),
+    generate_summary: bool = Query(False, description="Generate AI summary"),
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(auth.get_current_user_optional)  # Optional auth
 ):
@@ -76,6 +111,22 @@ def get_question(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Question not found"
             )
+        
+        # Generate AI summary if requested and not already generated
+        if generate_summary and ai_service and not question.ai_summary:
+            answers_data = []
+            if hasattr(question, 'answers') and question.answers:
+                answers_data = [{'content': answer.content} for answer in question.answers[:3]]
+            
+            summary = await ai_service.summarize_question(
+                question.title, 
+                question.content, 
+                answers_data
+            )
+            
+            if summary:
+                question.ai_summary = summary
+                db.commit()
         
         return question
     except HTTPException:

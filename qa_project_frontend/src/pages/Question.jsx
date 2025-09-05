@@ -5,6 +5,7 @@ import { AuthContext } from '../context/AuthContext';
 import { apiHelpers } from '../api';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TagCloud from '../components/TagCloud';
+import AIFeatures from '../components/AIFeatures';
 import {
   FaEye,
   FaComments,
@@ -21,7 +22,8 @@ import {
   FaReply,
   FaHeart,
   FaRegHeart,
-  FaTags
+  FaTags,
+  FaRobot
 } from 'react-icons/fa';
 import md5 from 'md5';
 
@@ -38,6 +40,7 @@ export default function Question() {
   const [starredAnswers, setStarredAnswers] = useState(new Set());
   const [viewTracked, setViewTracked] = useState(false);
   const [error, setError] = useState(null);
+  const [showAIFeatures, setShowAIFeatures] = useState(false);
 
   // Fetch question data
   useEffect(() => {
@@ -182,6 +185,14 @@ export default function Question() {
     }
   };
 
+  const handleSummaryGenerated = (summary) => {
+    setQuestion(prev => prev ? { ...prev, ai_summary: summary } : null);
+  };
+
+  const handleTagsSuggested = (tags) => {
+    setQuestion(prev => prev ? { ...prev, suggested_tags: tags.join(', ') } : null);
+  };
+
   const timeAgo = (dateString) => {
     const now = new Date();
     const date = new Date(dateString);
@@ -304,6 +315,13 @@ export default function Question() {
 
                 {/* Question Actions */}
                 <div className="flex items-center gap-2 ml-6">
+                  <button 
+                    onClick={() => setShowAIFeatures(!showAIFeatures)}
+                    className="p-2 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition-colors"
+                    title="AI Features"
+                  >
+                    <FaRobot className="w-4 h-4" />
+                  </button>
                   <button className="p-2 text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                     <FaShare className="w-4 h-4" />
                   </button>
@@ -323,6 +341,19 @@ export default function Question() {
                 </div>
               </div>
 
+              {/* AI Summary */}
+              {question.ai_summary && (
+                <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FaRobot className="text-purple-600 dark:text-purple-400" />
+                    <span className="font-medium text-purple-800 dark:text-purple-200">AI Summary</span>
+                  </div>
+                  <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
+                    {question.ai_summary}
+                  </p>
+                </div>
+              )}
+
               {/* Question Content */}
               <div className="prose prose-lg max-w-none text-gray-700 dark:text-gray-300 mb-6">
                 {formatContent(question.content)}
@@ -336,6 +367,17 @@ export default function Question() {
                     <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Tags:</span>
                   </div>
                   <TagCloud tags={tags} />
+                </div>
+              )}
+
+              {/* Suggested Tags */}
+              {question.suggested_tags && (
+                <div className="mb-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FaRobot className="text-purple-500" />
+                    <span className="text-sm font-medium text-purple-600 dark:text-purple-400">AI Suggested Tags:</span>
+                  </div>
+                  <TagCloud tags={question.suggested_tags.split(',').map(t => t.trim()).filter(Boolean)} />
                 </div>
               )}
 
@@ -371,6 +413,20 @@ export default function Question() {
               </div>
             </motion.article>
 
+            {/* AI Features Panel */}
+            {showAIFeatures && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-8"
+              >
+                <AIFeatures 
+                  question={question}
+                  onSummaryGenerated={handleSummaryGenerated}
+                  onTagsSuggested={handleTagsSuggested}
+                />
+              </motion.div>
+            )}
             {/* Answers Section */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -422,6 +478,18 @@ export default function Question() {
                             <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                               {answer.stars_count || 0}
                             </span>
+                            {/* Quality Score */}
+                            {answer.quality_score && answer.quality_score !== 50 && (
+                              <div className="text-xs text-center">
+                                <div className="text-gray-500 dark:text-gray-400">Quality</div>
+                                <div className={`font-semibold ${
+                                  answer.quality_score >= 80 ? 'text-green-600' :
+                                  answer.quality_score >= 60 ? 'text-yellow-600' : 'text-red-600'
+                                }`}>
+                                  {answer.quality_score}%
+                                </div>
+                              </div>
+                            )}
                           </div>
 
                           {/* Answer Content */}
@@ -608,6 +676,17 @@ export default function Question() {
                     }
                   </span>
                 </div>
+                {question.quality_score && question.quality_score !== 50 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">AI Quality</span>
+                    <span className={`font-medium ${
+                      question.quality_score >= 80 ? 'text-green-600' :
+                      question.quality_score >= 60 ? 'text-yellow-600' : 'text-red-600'
+                    }`}>
+                      {question.quality_score}%
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 

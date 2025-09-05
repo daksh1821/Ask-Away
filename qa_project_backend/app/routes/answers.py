@@ -2,11 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Path
 from sqlalchemy.orm import Session
 from typing import List
 from .. import schemas, database, crud, auth, models
+from ..services.ai_service import ai_service
+from ..services.slack_service import slack_service
+from ..services.aws_service import aws_service
 
 router = APIRouter(prefix="/answers", tags=["answers"])
 
 @router.post("/{question_id}", response_model=schemas.AnswerOut, status_code=status.HTTP_201_CREATED)
-def create_answer(
+async def create_answer(
     question_id: int = Path(..., description="ID of the question to answer"),
     answer: schemas.AnswerCreate = ...,
     db: Session = Depends(database.get_db),
@@ -23,7 +26,40 @@ def create_answer(
             )
         
         # Create the answer (this will also increment user's answer count)
-        return crud.create_answer(db, current_user.id, question_id, answer)
+        new_answer = crud.create_answer(db, current_user.id, question_id, answer)
+        
+        # AI Enhancement: Generate quality score
+        if ai_service:
+            quality_score = await ai_service.generate_answer_quality_score(
+                answer.content,
+                f"{question.title}\n{question.content}"
+            )
+            new_answer.quality_score = int(quality_score * 100)  # Convert to 0-100 scale
+            db.commit()
+        
+        # Send Slack notification
+        if slack_service:
+            await slack_service.notify_new_answer(
+                {
+                    'id': question.id,
+                    'title': question.title
+                },
+                {
+                    'id': new_answer.id,
+                    'content': new_answer.content
+                },
+                {
+                    'first_name': current_user.first_name,
+                    'last_name': current_user.last_name,
+                    'username': current_user.username
+                }
+            )
+        
+        # Send metrics to CloudWatch
+        if aws_service:
+            await aws_service.send_metric_to_cloudwatch('AnswersCreated', 1)
+        
+        return new_answer
         
     except HTTPException:
         raise

@@ -10,6 +10,7 @@ import Ask from './pages/Ask';
 import Question from './pages/Question';
 import Explore from './pages/Explore';
 import Profile from './pages/Profile';
+import AuthCallback from './pages/AuthCallback';
 import PrivateRoute from './components/PrivateRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -63,6 +64,7 @@ function App() {
               <Route path="/question/:id" element={<Question />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
               
               {/* Protected Routes */}
               <Route path="/ask" element={

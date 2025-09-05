@@ -1,9 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm, HTTPBearer
+from fastapi.responses import RedirectResponse
+from starlette.requests import Request
 from sqlalchemy.orm import Session
 from datetime import timedelta
 from typing import Optional, List
 from .. import schemas, auth, database, crud, models, config
+from ..services.oauth_service import oauth_service
 import logging
 
 logger = logging.getLogger(__name__)
@@ -109,6 +112,93 @@ def refresh_token(
         "expires_in": config.settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
     }
 
+
+# =====================
+# Google OAuth Integration
+# =====================
+
+@router.get("/google/login")
+async def google_login(request: Request):
+    """Initiate Google OAuth login"""
+    try:
+        redirect_uri = config.settings.GOOGLE_REDIRECT_URI
+        return await oauth_service.get_google_auth_url(request, redirect_uri)
+    except Exception as e:
+        logger.error(f"Google login initiation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to initiate Google login"
+        )
+
+@router.get("/google/callback")
+async def google_callback(request: Request, db: Session = Depends(database.get_db)):
+    """Handle Google OAuth callback"""
+    try:
+        user_info = await oauth_service.handle_google_callback(request)
+        if not user_info:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to get user information from Google"
+            )
+        
+        # Check if user exists by Google ID
+        user = db.query(models.User).filter(models.User.google_id == user_info['google_id']).first()
+        
+        if not user:
+            # Check if user exists by email
+            user = crud.get_user_by_email(db, user_info['email'])
+            if user:
+                # Link Google account to existing user
+                user.google_id = user_info['google_id']
+                user.is_oauth_user = 1
+                if user_info.get('picture'):
+                    user.profile_picture = user_info['picture']
+                db.commit()
+            else:
+                # Create new user
+                username = user_info['email'].split('@')[0]
+                # Ensure username is unique
+                counter = 1
+                original_username = username
+                while crud.get_user_by_username(db, username):
+                    username = f"{original_username}{counter}"
+                    counter += 1
+                
+                user = models.User(
+                    username=username,
+                    first_name=user_info['first_name'],
+                    last_name=user_info['last_name'],
+                    email=user_info['email'],
+                    password_hash="",  # No password for OAuth users
+                    google_id=user_info['google_id'],
+                    profile_picture=user_info.get('picture', ''),
+                    is_oauth_user=1,
+                    questions_count=0,
+                    answers_count=0,
+                    reputation=0
+                )
+                db.add(user)
+                db.commit()
+                db.refresh(user)
+        
+        # Generate JWT token
+        access_token_expires = timedelta(minutes=config.settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = auth.create_access_token(
+            data={"sub": user.username}, expires_delta=access_token_expires
+        )
+        
+        # Redirect to frontend with token
+        frontend_url = f"http://localhost:5173/auth/callback?token={access_token}"
+        return RedirectResponse(url=frontend_url)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Google OAuth callback failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="OAuth authentication failed"
+        )
 
 # =====================
 # Optional Authentication Helper

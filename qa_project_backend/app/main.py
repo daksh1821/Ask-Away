@@ -8,6 +8,7 @@ import uvicorn
 from .config import settings
 from .database import engine, Base
 from .routes import auth as auth_router, questions as q_router, answers as answers_router
+from .routes import ai as ai_router, integrations as integrations_router
 
 # Configure logging
 logging.basicConfig(
@@ -28,7 +29,7 @@ except Exception as e:
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="A comprehensive Q&A platform API built with FastAPI",
+    description="A comprehensive Q&A platform API with AI Summarization & Integrations built with FastAPI",
     docs_url=settings.DOCS_URL,
     redoc_url=settings.REDOC_URL,
     debug=settings.DEBUG
@@ -76,6 +77,12 @@ async def read_root():
     return {
         "message": f"Welcome to {settings.APP_NAME}!",
         "version": settings.APP_VERSION,
+        "features": {
+            "ai_summarization": bool(settings.OPENAI_API_KEY),
+            "slack_integration": bool(settings.SLACK_BOT_TOKEN),
+            "aws_integration": bool(settings.AWS_ACCESS_KEY_ID),
+            "google_oauth": bool(settings.GOOGLE_CLIENT_ID)
+        }
         "docs_url": settings.DOCS_URL,
         "redoc_url": settings.REDOC_URL
     }
@@ -83,9 +90,16 @@ async def read_root():
 # Include routers with API prefix
 app.include_router(
     auth_router.router, 
+        "features": [
+            "AI-powered question summarization",
+            "Google OAuth integration",
+            "Slack notifications",
+            "AWS S3 backup & CloudWatch metrics",
+            "Real-time analytics"
+        ]
     prefix=settings.API_PREFIX,
     tags=["authentication"]
-)
+        "message": f"Welcome to {settings.APP_NAME} with AI Summarization & Integrations!",
 app.include_router(
     q_router.router, 
     prefix=settings.API_PREFIX,
@@ -96,6 +110,16 @@ app.include_router(
     prefix=settings.API_PREFIX,
     tags=["answers"]
 )
+app.include_router(
+    ai_router.router,
+    prefix=settings.API_PREFIX,
+    tags=["ai"]
+)
+app.include_router(
+    integrations_router.router,
+    prefix=settings.API_PREFIX,
+    tags=["integrations"]
+)
 
 # Startup event
 @app.on_event("startup")
@@ -105,6 +129,10 @@ async def startup_event():
     logger.info(f"Debug mode: {settings.DEBUG}")
     logger.info(f"Database: {settings.DATABASE_URL}")
     logger.info(f"CORS origins: {settings.CORS_ORIGINS}")
+    logger.info(f"AI Summarization: {'Enabled' if settings.OPENAI_API_KEY else 'Disabled'}")
+    logger.info(f"Slack Integration: {'Enabled' if settings.SLACK_BOT_TOKEN else 'Disabled'}")
+    logger.info(f"AWS Integration: {'Enabled' if settings.AWS_ACCESS_KEY_ID else 'Disabled'}")
+    logger.info(f"Google OAuth: {'Enabled' if settings.GOOGLE_CLIENT_ID else 'Disabled'}")
 
 # Shutdown event
 @app.on_event("shutdown")

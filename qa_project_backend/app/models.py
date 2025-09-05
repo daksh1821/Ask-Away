@@ -14,6 +14,11 @@ class User(Base):
     email = Column(String(200), unique=True, nullable=False, index=True)
     password_hash = Column(String(200), nullable=False)
     
+    # OAuth fields
+    google_id = Column(String(100), unique=True, nullable=True, index=True)
+    profile_picture = Column(String(500), default="")
+    is_oauth_user = Column(Integer, default=0)  # 0=regular, 1=google
+    
     # Profile fields
     interests = Column(String(500), default="")
     work_area = Column(String(200), default="")
@@ -25,6 +30,10 @@ class User(Base):
     questions_count = Column(Integer, default=0, nullable=False)
     answers_count = Column(Integer, default=0, nullable=False)
     reputation = Column(Integer, default=0, nullable=False)
+    
+    # AI & Quality scores
+    ai_summary_enabled = Column(Integer, default=1)  # Enable AI summaries
+    quality_score = Column(Integer, default=50)  # Overall quality score 0-100
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -39,6 +48,7 @@ class User(Base):
     __table_args__ = (
         Index('idx_user_reputation', 'reputation'),
         Index('idx_user_created_at', 'created_at'),
+        Index('idx_user_google_id', 'google_id'),
     )
 
 class Question(Base):
@@ -50,6 +60,12 @@ class Question(Base):
     tags = Column(String(300), default="")
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     views_count = Column(Integer, default=0, nullable=False)  # NEW: Track total views
+    
+    # AI & Integration fields
+    ai_summary = Column(Text, default="")  # AI-generated summary
+    suggested_tags = Column(String(500), default="")  # AI-suggested tags
+    slack_notified = Column(Integer, default=0)  # Whether Slack was notified
+    quality_score = Column(Integer, default=50)  # AI quality score 0-100
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -67,6 +83,7 @@ class Question(Base):
         Index('idx_question_tags', 'tags'),
         Index('idx_question_title_content', 'title', 'content'),  # For full-text search
         Index('idx_question_views_count', 'views_count'),  # NEW: For sorting by popularity
+        Index('idx_question_quality_score', 'quality_score'),
     )
 
 class Answer(Base):
@@ -76,6 +93,10 @@ class Answer(Base):
     content = Column(Text, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     question_id = Column(Integer, ForeignKey("questions.id", ondelete="CASCADE"), nullable=False)
+    
+    # AI & Quality fields
+    quality_score = Column(Integer, default=50)  # AI-generated quality score 0-100
+    is_ai_generated = Column(Integer, default=0)  # Whether this is AI-generated
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -90,6 +111,7 @@ class Answer(Base):
     __table_args__ = (
         Index('idx_answer_question_created', 'question_id', 'created_at'),
         Index('idx_answer_user_created', 'user_id', 'created_at'),
+        Index('idx_answer_quality_score', 'quality_score'),
     )
 
 class Star(Base):
