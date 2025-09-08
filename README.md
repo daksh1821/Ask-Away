@@ -155,6 +155,6 @@ MIT
 
 ---
 
-> _Made with ❤️ by Prashant Chauhan
+> _Made with ❤️ by **Prashant Chauhan**
 ## Work is Under Progress
 ## Stay Tuned for Updates
