@@ -125,7 +125,7 @@ npm run dev
 
 ---
 
-## 🖼️ Preview
+## 🖼️ Preview (yet to be added)
 
 ![profile page](https://img.shields.io/badge/Profile-Page-teal?style=flat-square)
 ![notification bell](https://img.shields.io/badge/Notifications-bell-yellow?style=flat-square)
@@ -156,3 +156,5 @@ MIT
 ---
 
 > _Made with ❤️ by Prashant Chauhan
+## Work is Under Progress
+## Stay Tuned for Updates
