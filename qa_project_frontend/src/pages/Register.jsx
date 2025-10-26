@@ -1,6 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import axios from 'axios';
 import { AnimatePresence } from 'framer-motion';
 import { FaEye, FaEyeSlash, FaUser, FaEnvelope, FaLock, FaBriefcase, FaHeart, FaCheckCircle } from 'react-icons/fa';
 import { AuthContext } from '../context/AuthContext';
@@ -72,14 +73,15 @@ const Register = () => {
 
     try {
       const response = await axios.post(
-        'http://localhost:4000/api/auth/register', 
+        'http://localhost:4000/api/users/register', 
         formData
       );
       navigate('/login', { 
         state: { message: 'Registration successful! Please log in.' }
       });
     } catch (err) {
-      setError(err.response?.data?.detail || 'Registration failed. Please try again.');
+      console.error("Registration Error:", err.response?.data);
+      setError(err.response?.data?.message || 'Registration failed. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
